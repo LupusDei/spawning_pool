@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+#
+# spawning-pool-launch (spl) - Launch Claude in all spawn directories of an existing pool
+#
+# Usage: spawning-pool-launch [pool-directory]
+#
+# If no pool directory is specified, looks for a *_pool directory in the current directory.
+#
+
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+usage() {
+    cat <<EOF
+Usage: spawning-pool-launch [pool-directory]
+
+Arguments:
+    pool-directory   Optional. Path to the pool directory.
+                     If not specified, searches for *_pool in current directory.
+
+Example:
+    spawning-pool-launch              # Auto-detect pool in current directory
+    spawning-pool-launch myapp_pool   # Launch from specific pool
+
+This will launch Claude in each spawn-N directory found in the pool.
+EOF
+    exit 1
+}
+
+# Find pool directory
+if [[ $# -eq 0 ]]; then
+    # Auto-detect pool directory
+    POOL_DIRS=($(find . -maxdepth 1 -type d -name '*_pool' 2>/dev/null))
+
+    if [[ ${#POOL_DIRS[@]} -eq 0 ]]; then
+        log_error "No *_pool directory found in current directory"
+        exit 1
+    elif [[ ${#POOL_DIRS[@]} -gt 1 ]]; then
+        log_error "Multiple pool directories found. Please specify one:"
+        for dir in "${POOL_DIRS[@]}"; do
+            echo "  - $dir"
+        done
+        exit 1
+    fi
+
+    POOL_DIR="${POOL_DIRS[0]}"
+elif [[ $# -eq 1 ]]; then
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        usage
+    fi
+    POOL_DIR="$1"
+else
+    log_error "Expected 0 or 1 arguments, got $#"
+    usage
+fi
+
+# Validate pool directory exists
+if [[ ! -d "$POOL_DIR" ]]; then
+    log_error "Pool directory not found: $POOL_DIR"
+    exit 1
+fi
+
+POOL_PATH="$(cd "$POOL_DIR" && pwd)"
+log_info "Using pool: $POOL_PATH"
+
+# Find all spawn directories
+SPAWN_DIRS=($(find "$POOL_PATH" -maxdepth 1 -type d -name 'spawn-*' | sort -V))
+
+if [[ ${#SPAWN_DIRS[@]} -eq 0 ]]; then
+    log_error "No spawn directories found in $POOL_PATH"
+    exit 1
+fi
+
+log_info "Found ${#SPAWN_DIRS[@]} spawn directories"
+echo
+
+# Launch Claude in each spawn directory
+for SPAWN_DIR in "${SPAWN_DIRS[@]}"; do
+    SPAWN_NAME="$(basename "$SPAWN_DIR")"
+
+    # Find the repo directory inside the spawn
+    REPO_DIRS=($(find "$SPAWN_DIR" -maxdepth 1 -type d ! -name "$(basename "$SPAWN_DIR")" 2>/dev/null))
+
+    if [[ ${#REPO_DIRS[@]} -eq 0 ]]; then
+        log_warn "No repo directory found in $SPAWN_NAME, skipping"
+        continue
+    fi
+
+    REPO_PATH="${REPO_DIRS[0]}"
+    log_info "Launching Claude in $SPAWN_NAME/$(basename "$REPO_PATH")..."
+
+    # Open new terminal window/tab and run claude
+    if [[ "$(uname)" == "Darwin" ]]; then
+        osascript <<EOF
+tell application "Terminal"
+    do script "cd '$REPO_PATH' && claude"
+    activate
+end tell
+EOF
+    else
+        # On Linux, try common terminal emulators
+        if command -v gnome-terminal &>/dev/null; then
+            gnome-terminal --working-directory="$REPO_PATH" -- claude &
+        elif command -v xterm &>/dev/null; then
+            xterm -e "cd '$REPO_PATH' && claude" &
+        else
+            log_warn "Could not launch terminal for $SPAWN_NAME. Please run 'claude' manually in: $REPO_PATH"
+        fi
+    fi
+done
+
+echo
+log_success "All agents launched!"
+echo
+log_info "Pool structure:"
+echo "  $(basename "$POOL_PATH")/"
+for SPAWN_DIR in "${SPAWN_DIRS[@]}"; do
+    SPAWN_NAME="$(basename "$SPAWN_DIR")"
+    REPO_DIRS=($(find "$SPAWN_DIR" -maxdepth 1 -type d ! -name "$SPAWN_NAME" 2>/dev/null))
+    REPO_NAME="$(basename "${REPO_DIRS[0]:-unknown}")"
+    echo "  ├── $SPAWN_NAME/$REPO_NAME/  (claude running)"
+done
