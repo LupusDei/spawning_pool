@@ -14,6 +14,10 @@
 
 set -euo pipefail
 
+# Get the directory where this script lives (for finding PRIME.md)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SPAWNING_POOL_DIR="$(dirname "$SCRIPT_DIR")"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -98,6 +102,15 @@ log_success "Cloned repo into runner/"
 cd "$REPO_NAME"
 log_info "Initializing beads in runner..."
 bd init
+
+# Copy PRIME.md into .beads/ for context recovery
+if [[ -f "$SPAWNING_POOL_DIR/PRIME.md" ]]; then
+    cp "$SPAWNING_POOL_DIR/PRIME.md" .beads/PRIME.md
+    log_success "Copied PRIME.md to .beads/"
+else
+    log_warn "PRIME.md not found at $SPAWNING_POOL_DIR/PRIME.md"
+fi
+
 git add .beads/ AGENTS.md .gitattributes 2>/dev/null || git add .beads/ 2>/dev/null || true
 git commit -m "Initialize beads issue tracking" 2>/dev/null || log_warn "Nothing to commit (beads may already exist)"
 git push 2>/dev/null || log_warn "Push failed or nothing to push"
