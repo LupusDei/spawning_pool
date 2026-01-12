@@ -99,9 +99,7 @@ cd "$REPO_NAME"
 log_info "Initializing beads in runner..."
 bd init
 git add .beads/ AGENTS.md .gitattributes 2>/dev/null || git add .beads/ 2>/dev/null || true
-git commit -m "Initialize beads issue tracking
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>" 2>/dev/null || log_warn "Nothing to commit (beads may already exist)"
+git commit -m "Initialize beads issue tracking" 2>/dev/null || log_warn "Nothing to commit (beads may already exist)"
 git push 2>/dev/null || log_warn "Push failed or nothing to push"
 log_success "Beads initialized and pushed"
 
