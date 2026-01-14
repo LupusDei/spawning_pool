@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(/Users/Reason/code/ai/utils/spawning_pool/bin/spawn-project:*)"
+      "Bash(/Users/Reason/code/ai/utils/spawning_pool/bin/spawn-project:*)",
+      "Bash(chmod:*)",
+      "Bash(ln:*)"
     ]
   }
 }

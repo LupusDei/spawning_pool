@@ -76,3 +76,4 @@ npm run build     # TypeScript compilation
 npm run lint      # Code quality
 npm test          # Test suite
 ```
+
