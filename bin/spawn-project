@@ -14,21 +14,12 @@
 
 set -euo pipefail
 
-# Get the directory where this script lives (for finding PRIME.md)
+# Get the directory where this script lives (for finding PRIME.md and common functions)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPAWNING_POOL_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# Source shared functions
+source "$SCRIPT_DIR/spawning-pool-common.sh"
 
 usage() {
     cat <<EOF
@@ -118,6 +109,10 @@ log_success "Beads initialized and pushed"
 
 cd "$POOL_PATH"
 
+# Open Cursor in runner directory
+RUNNER_REPO_PATH="$POOL_PATH/runner/$REPO_NAME"
+launch_cursor "$RUNNER_REPO_PATH"
+
 # Create agent spawn directories
 log_info "Creating $NUM_AGENTS agent workspaces..."
 for i in $(seq 1 "$NUM_AGENTS"); do
@@ -147,27 +142,7 @@ for i in $(seq 1 "$NUM_AGENTS"); do
     SPAWN_DIR="spawn-$i"
     REPO_PATH="$POOL_PATH/$SPAWN_DIR/$REPO_NAME"
 
-    log_info "Launching Claude in $SPAWN_DIR..."
-
-    # Open new terminal window/tab and run claude
-    # This uses osascript on macOS to open new Terminal windows
-    if [[ "$(uname)" == "Darwin" ]]; then
-        osascript <<EOF
-tell application "Terminal"
-    do script "cd '$REPO_PATH' && claude"
-    activate
-end tell
-EOF
-    else
-        # On Linux, try common terminal emulators
-        if command -v gnome-terminal &>/dev/null; then
-            gnome-terminal --working-directory="$REPO_PATH" -- claude &
-        elif command -v xterm &>/dev/null; then
-            xterm -e "cd '$REPO_PATH' && claude" &
-        else
-            log_warn "Could not launch terminal for $SPAWN_DIR. Please run 'claude' manually in: $REPO_PATH"
-        fi
-    fi
+    launch_claude_in_iterm "$REPO_PATH" "$SPAWN_DIR"
 done
 
 echo

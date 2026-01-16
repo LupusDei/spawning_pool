@@ -9,17 +9,11 @@
 
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Get the directory where this script lives (for finding common functions)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# Source shared functions
+source "$SCRIPT_DIR/spawning-pool-common.sh"
 
 usage() {
     cat <<EOF
@@ -74,6 +68,14 @@ fi
 POOL_PATH="$(cd "$POOL_DIR" && pwd)"
 log_info "Using pool: $POOL_PATH"
 
+# Open Cursor in runner directory
+RUNNER_REPO_PATH=$(find_runner_repo_path "$POOL_PATH")
+if [[ -n "$RUNNER_REPO_PATH" ]]; then
+    launch_cursor "$RUNNER_REPO_PATH"
+else
+    log_warn "Runner directory not found. Please open Cursor manually in the runner directory."
+fi
+
 # Find all spawn directories
 SPAWN_DIRS=($(find "$POOL_PATH" -maxdepth 1 -type d -name 'spawn-*' | sort -V))
 
@@ -98,26 +100,7 @@ for SPAWN_DIR in "${SPAWN_DIRS[@]}"; do
     fi
 
     REPO_PATH="${REPO_DIRS[0]}"
-    log_info "Launching Claude in $SPAWN_NAME/$(basename "$REPO_PATH")..."
-
-    # Open new terminal window/tab and run claude
-    if [[ "$(uname)" == "Darwin" ]]; then
-        osascript <<EOF
-tell application "Terminal"
-    do script "cd '$REPO_PATH' && claude"
-    activate
-end tell
-EOF
-    else
-        # On Linux, try common terminal emulators
-        if command -v gnome-terminal &>/dev/null; then
-            gnome-terminal --working-directory="$REPO_PATH" -- claude &
-        elif command -v xterm &>/dev/null; then
-            xterm -e "cd '$REPO_PATH' && claude" &
-        else
-            log_warn "Could not launch terminal for $SPAWN_NAME. Please run 'claude' manually in: $REPO_PATH"
-        fi
-    fi
+    launch_claude_in_iterm "$REPO_PATH" "$SPAWN_NAME/$(basename "$REPO_PATH")"
 done
 
 echo
